@@ -307,7 +307,7 @@ function roundTop(x,y,w,h,r){
   var ys=D.map(function(r){return r.y;});
   var rated=D.filter(function(r){return r.i!=null;}).length;
   $('#meta').textContent=D.length+' episodes and movies from '+series+' series, aired '+Math.min.apply(null,ys)+' to '+Math.max.apply(null,ys)+'. '+rated+' have an IMDb rating.';
-  $('#footN').textContent='Data: '+D.length+' rows, one per episode or movie.';
+  $('#footN').textContent='Source: the scoobydoo CSV you attached, '+D.length+' rows.';
 })();
 
 /* ---------- era filter ---------- */
@@ -368,7 +368,7 @@ function drawGang(){
     });
   });
   $('#rampMax').textContent=pct(GMAX);
-  $('#gangN').textContent='Each cell rests on '+nmin+' to '+nmax+' episodes that have data for that character. Cells with fewer than 10 are not shown. The color scale is the same in every era.';
+  $('#gangN').textContent='Each cell rests on '+nmin+' to '+nmax+' episodes that have data for that character. Cells with fewer than 10 are not shown. The colour scale is the same in every era.';
   // sentence
   function best(mi){
     var bi=-1,bv=-1;
@@ -708,6 +708,5 @@ window.addEventListener('resize',function(){
 })();
 </script>
 
-<script data-goatcounter="https://workofphuong.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
 </body>
 </html>
