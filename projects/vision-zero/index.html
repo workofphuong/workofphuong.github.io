@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cincinnati Vision Zero Projects Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root{
+    --asphalt:#20262B; --concrete:#E3E6E8; --card:#FFFFFF; --line:#C8CDD2;
+    --ink:#20262B; --muted:#59636C; --yellow:#F5B800; --green:#1B6E5A;
+    --steel:#3F5B73; --red:#B3261E;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    font-family:Barlow,"Segoe UI",Arial,sans-serif; font-size:14px;
+    background:var(--concrete); color:var(--ink);
+    display:flex; flex-direction:column; height:100vh; height:100dvh; overflow:hidden;
+  }
+  :focus-visible{outline:3px solid var(--yellow); outline-offset:2px}
+
+  /* Header with crosswalk stripe */
+  header{
+    flex:none; position:relative; background:var(--asphalt); color:#fff;
+    display:flex; align-items:center; gap:18px; padding:10px 16px 16px;
+  }
+  header::after{
+    content:""; position:absolute; left:0; right:0; bottom:0; height:6px;
+    background:repeating-linear-gradient(90deg,#fff 0 20px,transparent 20px 38px);
+  }
+  .title{flex:1; min-width:0}
+  h1{font-family:"Barlow Condensed","Arial Narrow",sans-serif; font-weight:600; font-size:34px; line-height:1.05; margin:0; letter-spacing:.01em}
+  .title p{margin:3px 0 0; color:#B9C1C8; font-size:13px}
+  .btn{
+    display:inline-block; cursor:pointer; background:var(--yellow); color:var(--asphalt);
+    font-weight:600; font-size:14px; padding:8px 14px; border-radius:4px; border:0; font-family:inherit;
+  }
+  .btn:hover{background:#FFC921}
+  .btn.ghost{background:transparent; color:var(--ink); border:1px solid var(--line); padding:5px 10px; font-weight:500}
+  .btn.ghost:hover{background:#fff}
+
+  #app{flex:1; min-height:0; display:flex; flex-direction:column; gap:10px; padding:10px 16px 8px}
+  #error{
+    flex:none; background:#FBEAE8; border:1px solid var(--red); color:#5E1510;
+    border-radius:6px; padding:9px 12px;
+  }
+  #error strong{display:block; font-weight:600}
+  [hidden]{display:none !important}
+
+
+  /* Dashboard grid: filters, KPIs, charts fill the rest, footnote */
+  #dash{flex:1; min-height:0; display:grid; grid-template-rows:auto auto minmax(0,1fr) auto auto; gap:10px}
+  .filters{display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px}
+  .filters label{display:flex; align-items:center; gap:6px; color:var(--muted); font-size:13px}
+  select{
+    font:inherit; color:var(--ink); background:#fff; border:1px solid var(--line);
+    border-radius:4px; padding:4px 6px; max-width:200px;
+  }
+  #noMatch{color:var(--red); font-weight:600}
+
+  .kpis{display:grid; grid-template-columns:repeat(4,1fr); gap:10px}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:6px; min-width:0}
+  .kpi{padding:8px 14px 9px}
+  .kpi .lab{color:var(--muted); font-size:13px}
+  .kpi .val{font-family:"Barlow Condensed",sans-serif; font-weight:600; font-size:38px; line-height:1.05}
+  .kpi .val.text{font-size:26px; line-height:1.25; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .kpi .sub{color:var(--muted); font-size:12px}
+
+  .charts{display:grid; grid-template-columns:1fr 1fr; grid-template-rows:minmax(0,1fr) minmax(0,1fr); gap:10px; min-height:0}
+  .chart{display:flex; flex-direction:column; padding:10px 14px 8px; min-height:0}
+  .chart h2{font-family:"Barlow Condensed",sans-serif; font-weight:600; font-size:19px; margin:0; line-height:1.15}
+  .ch{display:flex; flex-wrap:wrap; align-items:baseline; column-gap:10px}
+  .chart .hint{color:var(--muted); font-size:12px; margin:1px 0 4px}
+  .plot{position:relative; flex:1; min-height:0}
+  .notes{margin:0; color:var(--muted); font-size:12px}
+  .notes.foot{white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+
+  /* Shorter laptop screens: tighten spacing so every label still fits without scrolling */
+  @media (max-height:820px) and (min-width:901px){
+    #app{gap:7px; padding:7px 16px 6px} #dash{gap:7px}
+    header{padding:7px 16px 13px} h1{font-size:28px} .title p{font-size:12px; margin-top:1px}
+    .kpi{padding:5px 12px 6px} .kpi .val{font-size:30px} .kpi .val.text{font-size:22px; line-height:1.3}
+    .chart{padding:7px 12px 5px} .chart h2{font-size:17px} .chart .hint{margin-bottom:0}
+    .charts{gap:7px} .kpis{gap:7px}
+  }
+
+  /* Laptop screens (about 600 to 700px of usable height): drop the chart hints and subtitle, squeeze the rest */
+  @media (max-height:700px) and (min-width:901px){
+    #app{gap:5px; padding:5px 14px 4px} #dash{gap:5px}
+    header{padding:5px 14px 11px} h1{font-size:30px} .title p{font-size:12px; margin-top:0}
+    .filters{gap:4px 10px} .filters label{font-size:12px} select{padding:2px 4px; font-size:13px} .btn.ghost{padding:3px 8px}
+    .kpis{gap:5px} .kpi{padding:3px 10px 4px} .kpi .lab{font-size:12px} .kpi .val{font-size:24px} .kpi .val.text{font-size:19px; line-height:1.4} .kpi .sub{font-size:11px}
+    .charts{gap:5px} .chart{padding:5px 10px 3px} .chart h2{font-size:15px} .chart .hint{font-size:11px; margin:0}
+    .notes{font-size:11px}
+  }
+
+  /* Small screens: allow scrolling instead of crushing the charts */
+  @media (max-width:900px), (max-height:480px){
+    body{height:auto; overflow:auto}
+    #app,#dash{min-height:auto}
+    #dash{display:flex; flex-direction:column}
+    .kpis{grid-template-columns:1fr 1fr}
+    .charts{display:flex; flex-direction:column}
+    .plot{flex:none; height:240px}
+    header{flex-wrap:wrap}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none !important}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="title">
+    <h1>Vision Zero street safety projects, Cincinnati</h1>
+    <p>Street fixes under Cincinnati's Vision Zero program to prevent traffic deaths: where they are, what was built, who asked for them, and what is still planned.</p>
+  </div>
+</header>
+
+<div id="app">
+  <div id="error" role="alert" hidden></div>
+
+  <section id="dash">
+    <div class="filters" aria-label="Filters">
+      <label>Year <select id="f-year"></select></label>
+      <label>Status <select id="f-status"></select></label>
+      <label>Requested by <select id="f-origin"></select></label>
+      <label>Project type <select id="f-category"></select></label>
+      <label>Neighborhood <select id="f-hood"></select></label>
+      <button class="btn ghost" id="reset" type="button">Reset filters</button>
+      <span id="noMatch" hidden>No projects match these filters.</span>
+    </div>
+
+    <div class="kpis">
+      <div class="card kpi"><div class="lab">Projects</div><div class="val" id="k-total">0</div><div class="sub" id="k-total-sub"></div></div>
+      <div class="card kpi"><div class="lab">Completed</div><div class="val" id="k-done">0%</div><div class="sub" id="k-done-sub"></div></div>
+      <div class="card kpi"><div class="lab">Neighborhoods reached</div><div class="val" id="k-hood">0</div><div class="sub" id="k-hood-sub"></div></div>
+      <div class="card kpi"><div class="lab">Most common fix</div><div class="val text" id="k-top">-</div><div class="sub" id="k-top-sub"></div></div>
+    </div>
+
+    <div class="charts">
+      <div class="card chart">
+        <div class="ch"><h2>Projects by request year</h2><div class="hint">Colored by status. Click a bar to filter; click again to clear.</div></div>
+        <div class="plot"><canvas id="c-year" role="img" aria-label="Stacked column chart of projects by request year and status"></canvas></div>
+      </div>
+      <div class="card chart">
+        <div class="ch"><h2>Neighborhoods with the most projects</h2><div class="hint">Top 8. Click a bar to filter; click again to clear.</div></div>
+        <div class="plot"><canvas id="c-hood" role="img" aria-label="Stacked bar chart of the eight neighborhoods with the most projects"></canvas></div>
+      </div>
+      <div class="card chart">
+        <div class="ch"><h2>What was built</h2><div class="hint">Grouped by main treatment. Click a bar to filter; click again to clear.</div></div>
+        <div class="plot"><canvas id="c-cat" role="img" aria-label="Bar chart of projects by type of treatment"></canvas></div>
+      </div>
+      <div class="card chart">
+        <div class="ch"><h2>Who asked for it</h2><div class="hint">DOTE is the city's transportation department. Click a bar to filter.</div></div>
+        <div class="plot"><canvas id="c-origin" role="img" aria-label="Bar chart of projects by who requested them"></canvas></div>
+      </div>
+    </div>
+
+    <p class="notes foot">Vibe-coded by Phuong Le | Data source: City of Cincinnati</p>
+  </section>
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  var REQUIRED = ['NEIGHBORHOOD','PROJECT_TYPE','REQUEST_YEAR','STATUS','REQUEST_ORIGIN'];
+  var COLORS = {Complete:'#1B6E5A', Planned:'#F5B800', other:'#8A949C', steel:'#3F5B73', origin:'#6E4A7E'};
+  var TOP_N = 8;
+  var rows = [], charts = {}, info = {};
+  var filters = {year:'', status:'', origin:'', category:'', hood:''};
+  var $ = function(id){ return document.getElementById(id); };
+
+  /* ---------- Cleaning helpers ---------- */
+  function cleanHood(s){
+    var t = String(s||'').toUpperCase().replace(/\./g,'').replace(/\s+/g,' ').trim();
+    if(!t) return 'Unknown';
+    t = t.replace(/^MOUNT /,'MT ').replace('TUSCULM','TUSCULUM').replace(/^NORTHERN AVONDALE$/,'NORTH AVONDALE');
+    if(t==='CUF') return 'CUF';
+    if(t==='OVER THE RHINE') return 'Over-the-Rhine';
+    return t.toLowerCase().replace(/\b[a-z]/g,function(c){return c.toUpperCase();});
+  }
+  function cleanOrigin(s){
+    var t = String(s||'').trim();
+    if(!t) return 'Unknown';
+    if(/^dote$/i.test(t)) return 'DOTE';
+    if(/community/i.test(t)) return 'Community council';
+    return 'Other (CRC, UC)';
+  }
+  function cleanStatus(s){
+    var t = String(s||'').trim().toLowerCase();
+    return t ? t.charAt(0).toUpperCase()+t.slice(1) : 'Unknown';
+  }
+  // The raw PROJECT_TYPE column has many free-text combinations. Each row is assigned
+  // to one group by the first rule that matches (most specific treatments first).
+  function categorize(s){
+    var t = String(s||'').toLowerCase();
+    if(/speed (cushion|hump)|stopbump/.test(t)) return 'Speed cushions and humps';
+    if(/zebra/.test(t)) return 'Zebra striping';
+    if(/raised crosswalk|curb|bump ?out|bump outs|centerline|separator|seperator/.test(t)) return 'Street redesign';
+    if(/flashing|countdown|lightpath|paddle/.test(t)) return 'Signals and flashing lights';
+    if(/speed limit|radar|reduced speed/.test(t)) return 'Speed limit markings';
+    if(/crosswalk/.test(t)) return 'New or restriped crosswalks';
+    if(/sign/.test(t)) return 'Signage';
+    return 'Other';
+  }
+
+  /* ---------- Embedded data (City of Cincinnati Vision Zero Projects, 5 columns used) ---------- */
+  var DATA = [{"NEIGHBORHOOD":"AVONDALE","PROJECT_TYPE":"Crosswalk paddle, advance warning pedestrian signage, double-faced pedestrian signage","REQUEST_YEAR":"2,019","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"EAST WALNUT HILLS","PROJECT_TYPE":"New crosswalk","REQUEST_YEAR":"2,019","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"NORTH FAIRMOUNT","PROJECT_TYPE":"New crosswalk","REQUEST_YEAR":"2,019","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"MT. ADAMS","PROJECT_TYPE":"New crosswalks, quik-curb to narrow the street","REQUEST_YEAR":"2,019","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"MT. ADAMS","PROJECT_TYPE":"Reduced speed limit","REQUEST_YEAR":"2,019","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"WEST PRICE HILL","PROJECT_TYPE":"New crosswalk","REQUEST_YEAR":"2,019","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"CUF","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"CUF","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"CUF","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"CUF","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"CLIFTON","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"CLIFTON","PROJECT_TYPE":"Upgrade to pedestrian countdown signal","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"CORRYVILLE","PROJECT_TYPE":"Restripe crosswalk","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"CORRYVILLE","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Planned","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"CORRYVILLE","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Planned","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"AVONDALE","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Planned","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"AVONDALE","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Planned","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"AVONDALE","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Planned","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"WEST END","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"WEST END","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Planned","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"WEST END","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"CUF","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"CUF","PROJECT_TYPE":"Restripe crosswalk","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"CUF","PROJECT_TYPE":"Restripe crosswalk","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"EAST PRICE HILL","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"EAST PRICE HILL","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"WEST PRICE HILL","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Planned","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"WEST PRICE HILL","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"WEST PRICE HILL","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"WEST PRICE HILL","PROJECT_TYPE":"Restripe crosswalk","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"WEST PRICE HILL","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"WEST PRICE HILL","PROJECT_TYPE":"Restripe crosswalk","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"WEST PRICE HILL","PROJECT_TYPE":"Restripe crosswalk","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"WEST PRICE HILL","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Planned","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"WEST PRICE HILL","PROJECT_TYPE":"Restripe crosswalk","REQUEST_YEAR":"2,020","STATUS":"Planned","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"WEST PRICE HILL","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Planned","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"WEST PRICE HILL","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Planned","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"WEST PRICE HILL","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Planned","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"AVONDALE","PROJECT_TYPE":"Upgrade to pedestrian countdown signal","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"AVONDALE","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"AVONDALE","PROJECT_TYPE":"Speed limit pavement markings","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"AVONDALE","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"AVONDALE","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"AVONDALE","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"NORTH AVONDALE","PROJECT_TYPE":"Upgrade to pedestrian countdown signal","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"NORTH AVONDALE","PROJECT_TYPE":"Upgrade to pedestrian countdown signal","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"ROSELAWN","PROJECT_TYPE":"Restripe crosswalk and upgrade to pedestrian countdown signal","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"ROSELAWN","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"ROSELAWN","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"ROSELAWN","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"ROSELAWN","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Planned","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"WESTWOOD","PROJECT_TYPE":"Restripe crosswalk","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"WESTWOOD","PROJECT_TYPE":"Restripe crosswalk","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"WESTWOOD","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"EAST PRICE HILL","PROJECT_TYPE":"Restripe crosswalk, install speed limit pavement marking","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"EAST PRICE HILL","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Planned","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"EAST PRICE HILL","PROJECT_TYPE":"Install LightPath System","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"EAST PRICE HILL","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Planned","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"EAST PRICE HILL","PROJECT_TYPE":"Upgrade to pedestrian countdown signal","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"EAST PRICE HILL","PROJECT_TYPE":"Upgrade to pedestrian countdown signal","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"EAST PRICE HILL","PROJECT_TYPE":"Install pedestrian triggered flashing lights","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"EAST PRICE HILL","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"WESTWOOD","PROJECT_TYPE":"Install curb extensions","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"SOUTH CUMMINSVILLE","PROJECT_TYPE":"Install overhead pedestrian signage and curb extension","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"CLIFTON","PROJECT_TYPE":"Install LightPath System","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"PADDOCK HILLS","PROJECT_TYPE":"Install pedestrian triggered flashing lights","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"OAKLEY","PROJECT_TYPE":"Install raised crosswalk","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"EAST PRICE HILL","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"EAST PRICE HILL","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"WESTWOOD","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"WESTWOOD","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"LOWER PRICE HILL","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"LOWER PRICE HILL","PROJECT_TYPE":"Install speed limit pavement marking","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"BOND HILL","PROJECT_TYPE":"Install curb extensions","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"BOND HILL","PROJECT_TYPE":"Reduce curb radii","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"BOND HILL","PROJECT_TYPE":"Install curb extensions","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"BOND HILL","PROJECT_TYPE":"Install curb extensions","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"WALNUT HILLS","PROJECT_TYPE":"Restripe crosswalk and install curb curb extensions","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"WALNUT HILLS","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"CORRYVILLE","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"HARTWELL","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"MADISONVILLE","PROJECT_TYPE":"Update pedestrian signage","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"MADISONVILLE","PROJECT_TYPE":"Install reflective sign post blade","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"MILLVALE","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"EAST PRICE HILL","PROJECT_TYPE":"Install raised crosswalk and curb extensions","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"COLLEGE HILL","PROJECT_TYPE":"Install curb extensions","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"OAKLEY","PROJECT_TYPE":"Install pedestrian triggered flashing lights","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"MT. AUBURN","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"EAST PRICE HILL","PROJECT_TYPE":"Install marked crosswalk and ADA ramps","REQUEST_YEAR":"2,021","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"MADISONVILLE","PROJECT_TYPE":"Install marked crosswalk, install curb extensions","REQUEST_YEAR":"2,021","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"NORTHSIDE","PROJECT_TYPE":"Install curb extensions.","REQUEST_YEAR":"2,021","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"SOUTH FAIRMOUNT","PROJECT_TYPE":"Install curb extension.","REQUEST_YEAR":"2,021","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"EVANSTON","PROJECT_TYPE":"Install marked crosswalk.","REQUEST_YEAR":"2,021","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"BOND HILL","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,021","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"CLIFTON","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,021","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"COLUMBIA TUSCULUM","PROJECT_TYPE":"Install marked crosswalk.","REQUEST_YEAR":"2,021","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"EVANSTON","PROJECT_TYPE":"Convert crosswalks to zebra striping.","REQUEST_YEAR":"2,021","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"WALNUT HILLS","PROJECT_TYPE":"Install marked crosswalks.","REQUEST_YEAR":"2,021","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"MT. AUBURN","PROJECT_TYPE":"Install four way stop.","REQUEST_YEAR":"2,021","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"HARTWELL","PROJECT_TYPE":"Install one-way pavement markings","REQUEST_YEAR":"2,021","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"LINWOOD","PROJECT_TYPE":"Update pedestrian signage","REQUEST_YEAR":"2,021","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"MADISONVILLE","PROJECT_TYPE":"Install marked crosswalks","REQUEST_YEAR":"2,021","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"MADISONVILLE","PROJECT_TYPE":"Narrow WB turning radius.","REQUEST_YEAR":"2,021","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"WALNUT HILLS","PROJECT_TYPE":"Install raised crosswalk","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"BOND HILL","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"BOND HILL","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"CALIFORNIA","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"CALIFORNIA","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"CAMP WASHINGTON","PROJECT_TYPE":"Install centerline hardening","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"COLLEGE HILL","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"COLLEGE HILL","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"COLUMBIA TUSCULUM","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"COLUMBIA TUSCULUM","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"RIVERFRONT","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"EAST PRICE HILL","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"EAST PRICE HILL","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"EAST PRICE HILL","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"EAST PRICE HILL","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"WESTWOOD","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"MOUNT AUBURN","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"KENNEDY HEIGHTS","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"MT AIRY","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"MT WASHINGTON","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"MT WASHINGTON","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"NORTHERN AVONDALE","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"NORTHERN AVONDALE","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"SOUTH FAIRMOUNT","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"SOUTH FAIRMOUNT","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"EAST WESTWOOD","PROJECT_TYPE":"Install centerline hardening","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"MADISONVILLE","PROJECT_TYPE":"Install raised crosswalk","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"OAKLEY","PROJECT_TYPE":"Install raised crosswalk","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"MT. AUBURN","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"EVANSTON","PROJECT_TYPE":"Install speed limit pavement marking","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"EVANSTON","PROJECT_TYPE":"Install speed limit pavement marking","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"OVER THE RHINE","PROJECT_TYPE":"Install pedestrian triggered flashing lights","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"PLEASANT RIDGE","PROJECT_TYPE":"Install speed limit pavement marking","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"PLEASANT RIDGE","PROJECT_TYPE":"Install speed limit pavement marking","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"BOND HILL","PROJECT_TYPE":"Update pedestrian signage","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"BOND HILL","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"BOND HILL","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"BOND HILL","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"COLLEGE HILL","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"HARTWELL","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"HARTWELL","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"MT. AIRY","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"NORTHSIDE","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"WESTWOOD","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"WESTWOOD","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"WALNUT HILLS","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"WALNUT HILLS","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"WALNUT HILLS","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"COLLEGE HILL","PROJECT_TYPE":"Restripe crosswalk","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"LOWER PRICE HILL","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"LOWER PRICE HILL","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"OVER THE RHINE","PROJECT_TYPE":"Install curb extension and update pedestrian signage","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"NORTHSIDE","PROJECT_TYPE":"Install curb extensions","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"NORTHSIDE","PROJECT_TYPE":"Install curb extensions","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"MT. WASHINGTON","PROJECT_TYPE":"Install speed limit pavement marking","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"MT. WASHINGTON","PROJECT_TYPE":"Install speed limit pavement marking","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"LOWER PRICE HILL","PROJECT_TYPE":"Install speed limit pavement marking","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"EAST PRICE HILL","PROJECT_TYPE":"Install speed limit pavement marking","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"WEST PRICE HILL","PROJECT_TYPE":"Install speed limit pavement marking","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"EAST PRICE HILL","PROJECT_TYPE":"Install speed limit pavement marking","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"WEST PRICE HILL","PROJECT_TYPE":"Install speed limit pavement marking","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"WEST PRICE HILL","PROJECT_TYPE":"Install speed limit pavement marking","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"COLLEGE HILL","PROJECT_TYPE":"Install speed limit pavement marking","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"COLLEGE HILL","PROJECT_TYPE":"Install speed limit pavement marking","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"EVANSTON","PROJECT_TYPE":"Install raised crosswalk and curb extensions","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"EVANSTON","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"EVANSTON","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"NORTH AVONDALE","PROJECT_TYPE":"Install curb extensions and overhead pedestrian signage","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"NORTH AVONDALE","PROJECT_TYPE":"Install curb extensions","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"NORTH AVONDALE","PROJECT_TYPE":"Install curb extensions","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"OAKLEY","PROJECT_TYPE":"Convert crosswalks to zebra striping","REQUEST_YEAR":"2,020","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"CORRYVILLE","PROJECT_TYPE":"Install curb extensions","REQUEST_YEAR":"2,021","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"MT. AUBURN","PROJECT_TYPE":"Restripe crosswalk","REQUEST_YEAR":"2,019","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"MT. AUBURN","PROJECT_TYPE":"Restripe crosswalk","REQUEST_YEAR":"2,019","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"WEST PRICE HILL","PROJECT_TYPE":"Pedestrian triggered flashing lights, bump outs","REQUEST_YEAR":"2,019","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"WEST PRICE HILL","PROJECT_TYPE":"Pedestrian triggered flashing lights","REQUEST_YEAR":"2,019","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"WEST PRICE HILL","PROJECT_TYPE":"Pedestrian triggered flashing lights","REQUEST_YEAR":"2,019","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"NORTHSIDE","PROJECT_TYPE":"Radar signs","REQUEST_YEAR":"2,019","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"NORTHSIDE","PROJECT_TYPE":"Radar signs","REQUEST_YEAR":"2,019","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"SEDAMSVILLE","PROJECT_TYPE":"Radar signs","REQUEST_YEAR":"2,019","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"NORTHSIDE","PROJECT_TYPE":"Radar signs","REQUEST_YEAR":"2,019","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"DOWNTOWN","PROJECT_TYPE":"New crosswalk","REQUEST_YEAR":"2,019","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"NORTH AVONDALE","PROJECT_TYPE":"Radar signs","REQUEST_YEAR":"2,019","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"NORTH AVONDALE","PROJECT_TYPE":"Radar signs","REQUEST_YEAR":"2,019","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"CARTHAGE","PROJECT_TYPE":"Radar signs","REQUEST_YEAR":"2,019","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"COLUMBIA TUSCULM","PROJECT_TYPE":"Radar signs","REQUEST_YEAR":"2,019","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"RIVERSIDE","PROJECT_TYPE":"Radar signs","REQUEST_YEAR":"2,019","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"COLUMBIA TUSCULM","PROJECT_TYPE":"Restripe crosswalk","REQUEST_YEAR":"2,019","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"COLUMBIA TUSCULM","PROJECT_TYPE":"Restripe crosswalk","REQUEST_YEAR":"2,019","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"COLUMBIA TUSCULM","PROJECT_TYPE":"Restripe crosswalk","REQUEST_YEAR":"2,019","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"COLUMBIA TUSCULM","PROJECT_TYPE":"Restripe crosswalk","REQUEST_YEAR":"2,019","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"MT. AUBURN","PROJECT_TYPE":"Restripe crosswalk","REQUEST_YEAR":"2,019","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"MT. WASHINGTON","PROJECT_TYPE":"Crosswalk paddle","REQUEST_YEAR":"2,019","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"MT. WASHINGTON","PROJECT_TYPE":"Crosswalk paddle","REQUEST_YEAR":"2,019","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"OVER THE RHINE","PROJECT_TYPE":"Restripe crosswalk","REQUEST_YEAR":"2,019","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"CORRYVILLE","PROJECT_TYPE":"New crosswalk","REQUEST_YEAR":"2,019","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"EVANSTON","PROJECT_TYPE":"Pedestrian triggered flashing lights","REQUEST_YEAR":"2,019","STATUS":"Complete","REQUEST_ORIGIN":"DOTE"},{"NEIGHBORHOOD":"WEST END","PROJECT_TYPE":"Pedestrian triggered flashing lights, crosswalk paddle, upgraded pedestrian signage","REQUEST_YEAR":"2,019","STATUS":"Complete","REQUEST_ORIGIN":"CRC"},{"NEIGHBORHOOD":"COLLEGE HILL","PROJECT_TYPE":"Pedestrian triggered flashing lights, upgraded pedestrian signage","REQUEST_YEAR":"2,019","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"CORRYVILLE","PROJECT_TYPE":"Pedestrian triggered flashing lights, new ADA ramps","REQUEST_YEAR":"2,019","STATUS":"Complete","REQUEST_ORIGIN":"UC"},{"NEIGHBORHOOD":"WEST END","PROJECT_TYPE":"Pedestrian triggered flashing lights, upgraded pedestrian signage","REQUEST_YEAR":"2,019","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"NORTH AVONDALE","PROJECT_TYPE":"Pedestrian triggered flashing lights, crosswalk paddle, upgraded pedestrian signage","REQUEST_YEAR":"2,019","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"RIVERSIDE","PROJECT_TYPE":"Pedestrian triggered flashing lights, upgraded pedestrian signage","REQUEST_YEAR":"2,019","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"MT. WASHINGTON","PROJECT_TYPE":"Pedestrian triggered flashing lights, marked crosswalk, ADA ramps","REQUEST_YEAR":"2,019","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"SEDAMSVILLE","PROJECT_TYPE":"Crosswalk paddle, elimination of one northbound lane","REQUEST_YEAR":"2,019","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"SOUTH CUMMINSVILLE","PROJECT_TYPE":"New crosswalk","REQUEST_YEAR":"2,019","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"NORTH FAIRMOUNT","PROJECT_TYPE":"Crosswalk paddle, upgrade overhead pedestrian signage, add side-mounted pedestrian signage","REQUEST_YEAR":"2,019","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"SAYLER PARK","PROJECT_TYPE":"New crosswalk","REQUEST_YEAR":"2,019","STATUS":"Complete","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"DOWNTOWN","PROJECT_TYPE":"Install concrete bumpout","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"NORTHSIDE","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"NORTHSIDE","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"OAKLEY","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"OAKLEY","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"COLUMBIA TUSCULUM","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"COLUMBIA TUSCULUM","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"COLUMBIA TUSCULUM","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"COLUMBIA TUSCULUM","PROJECT_TYPE":"Install seperator curb","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"COLUMBIA TUSCULUM","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"EAST PRICE HILL","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"EAST PRICE HILL","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"MT LOOKOUT","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"EVANSTON","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"EVANSTON","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"EVANSTON","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"SOUTH FAIRMOUNT","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"EAST END","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"CARTHAGE","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"CARTHAGE","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"SPRING GROVE VILLAGE","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"WALNUT HILLS","PROJECT_TYPE":"Install speed cushions","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"CARTHAGE","PROJECT_TYPE":"Install speed hump","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"AVONDALE","PROJECT_TYPE":"Install speed hump","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"PENDLETON","PROJECT_TYPE":"Install stopbump","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"PENDLETON","PROJECT_TYPE":"Install striped bumpout","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"MOUNT AUBURN","PROJECT_TYPE":"Install centerline hardening","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"MOUNT AUBURN","PROJECT_TYPE":"Install centerline hardening","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"},{"NEIGHBORHOOD":"MOUNT AUBURN","PROJECT_TYPE":"Install centerline hardening","REQUEST_YEAR":"2,023","STATUS":"Planned","REQUEST_ORIGIN":"Community council"}];
+
+  function showError(title, detail){
+    var box = $('error');
+    box.innerHTML = '<strong></strong><span></span>';
+    box.firstChild.textContent = title;
+    box.lastChild.textContent = detail;
+    box.hidden = false;
+  }
+
+  function ingest(data, name, fields){
+    if(!data || !data.length){
+      return showError('The file has no data rows','Check that the file has a header row followed by at least one record.');
+    }
+    var keyMap = {};
+    (fields && fields.length ? fields : Object.keys(data[0])).forEach(function(f){
+      keyMap[String(f).replace(/^﻿/,'').trim().toUpperCase().replace(/\s+/g,'_')] = f;
+    });
+    var missing = REQUIRED.filter(function(k){ return !(k in keyMap); });
+    if(missing.length){
+      return showError('Missing columns: '+missing.join(', '),
+        'This dashboard needs these columns: '+REQUIRED.join(', ')+'. Use the Vision Zero Projects export from the Cincinnati open data portal.');
+    }
+    var get = function(r,k){ var v = r[keyMap[k]]; return v==null ? '' : String(v).trim(); };
+
+    var rawHoods = {}, rawTypes = {}, cleaned = [], dropped = 0, badYear = 0;
+    data.forEach(function(r){
+      var hoodRaw = get(r,'NEIGHBORHOOD'), typeRaw = get(r,'PROJECT_TYPE');
+      if(!hoodRaw && !typeRaw){ dropped++; return; }
+      var y = parseInt(get(r,'REQUEST_YEAR').replace(/[^\d]/g,''),10);   // "2,019" -> 2019
+      if(!(y>=1900 && y<=2100)){ y = null; badYear++; }
+      rawHoods[hoodRaw.toUpperCase()] = 1; rawTypes[typeRaw] = 1;
+      cleaned.push({
+        year:y, hood:cleanHood(hoodRaw), category:categorize(typeRaw),
+        origin:cleanOrigin(get(r,'REQUEST_ORIGIN')), status:cleanStatus(get(r,'STATUS'))
+      });
+    });
+    if(!cleaned.length){
+      return showError('No usable records found','Every row was missing both NEIGHBORHOOD and PROJECT_TYPE.');
+    }
+    rows = cleaned;
+    var hoodSet = {}, catSet = {};
+    rows.forEach(function(r){ hoodSet[r.hood]=1; catSet[r.category]=1; });
+    info = {
+      file:name, total:rows.length, dropped:dropped, badYear:badYear,
+      rawHoods:Object.keys(rawHoods).length, hoods:Object.keys(hoodSet).length,
+      rawTypes:Object.keys(rawTypes).length, cats:Object.keys(catSet).length
+    };
+    setupFilters();
+    render();
+  }
+
+  /* ---------- Filters ---------- */
+  function uniq(key){
+    var m = {}; rows.forEach(function(r){ if(r[key]!=null) m[r[key]]=1; });
+    return Object.keys(m);
+  }
+  function fillSelect(id, values, allLabel){
+    var s = $(id); s.innerHTML = '';
+    var o = document.createElement('option'); o.value=''; o.textContent=allLabel; s.appendChild(o);
+    values.forEach(function(v){ var op=document.createElement('option'); op.value=String(v); op.textContent=String(v); s.appendChild(op); });
+    s.value = '';
+  }
+  function statusOrder(list){
+    return list.sort(function(a,b){
+      var rank = function(x){ return x==='Complete'?0 : x==='Planned'?1 : 2; };
+      return rank(a)-rank(b) || a.localeCompare(b);
+    });
+  }
+  function setupFilters(){
+    filters = {year:'', status:'', origin:'', category:'', hood:''};
+    fillSelect('f-year', uniq('year').sort(function(a,b){return a-b;}), 'All years');
+    fillSelect('f-status', statusOrder(uniq('status')), 'All statuses');
+    fillSelect('f-origin', uniq('origin').sort(), 'All requesters');
+    fillSelect('f-category', uniq('category').sort(), 'All types');
+    fillSelect('f-hood', uniq('hood').sort(), 'All neighborhoods');
+  }
+  var selectMap = {year:'f-year', status:'f-status', origin:'f-origin', category:'f-category', hood:'f-hood'};
+  Object.keys(selectMap).forEach(function(k){
+    $(selectMap[k]).addEventListener('change', function(e){ filters[k] = e.target.value; render(); });
+  });
+  var resizeTimer;
+  window.addEventListener('resize', function(){
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function(){ if(rows.length) render(); }, 200);   // re-fit tooltip headroom to the new chart width
+  });
+  $('reset').addEventListener('click', function(){
+    Object.keys(filters).forEach(function(k){ filters[k]=''; $(selectMap[k]).value=''; });
+    render();
+  });
+  // skip = the dimension a chart itself shows, so that chart keeps its context and highlights the selection
+  function apply(skip){
+    return rows.filter(function(r){
+      return (skip==='year'     || !filters.year     || String(r.year)===filters.year) &&
+             (                      !filters.status   || r.status===filters.status) &&
+             (skip==='origin'   || !filters.origin   || r.origin===filters.origin) &&
+             (skip==='category' || !filters.category || r.category===filters.category) &&
+             (skip==='hood'     || !filters.hood     || r.hood===filters.hood);
+    });
+  }
+  function count(list, key){
+    var m = {}; list.forEach(function(r){ var v=r[key]; if(v==null) return; m[v]=(m[v]||0)+1; });
+    return m;
+  }
+
+  /* ---------- Chart.js setup ---------- */
+  var totalsPlugin = {
+    id:'totals',
+    afterDatasetsDraw:function(chart){
+      var ds = chart.data.datasets; if(!ds.length) return;
+      var horiz = chart.options.indexAxis==='y', ctx = chart.ctx;
+      var last = chart.getDatasetMeta(ds.length-1);
+      ctx.save(); ctx.font='600 12px Barlow, sans-serif'; ctx.fillStyle='#20262B';
+      last.data.forEach(function(el,i){
+        var t = ds.reduce(function(s,d){ return s+(d.data[i]||0); },0);
+        if(!t) return;
+        if(horiz){ ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillText(t, el.x+5, el.y); }
+        else { ctx.textAlign='center'; ctx.textBaseline='bottom'; ctx.fillText(t, el.x, el.y-3); }
+      });
+      ctx.restore();
+    }
+  };
+
+  // Tooltip anchor: just past the end of the hovered bar (horizontal) or above it (vertical),
+  // so the tooltip never sits on top of the data.
+  Chart.Tooltip.positioners.barEnd = function(items){
+    if(!items.length) return false;
+    var chart = this.chart, horiz = chart.options.indexAxis==='y', x = items[0].element.x, y = items[0].element.y;
+    var h = (this._size && this._size.height) || 0;
+    items.forEach(function(it){
+      if(horiz) x = Math.max(x, it.element.x); else y = Math.min(y, it.element.y);
+    });
+    if(horiz){
+      // The tooltip is taller than one bar row, so also clear every bar in the rows it spans
+      chart.data.datasets.forEach(function(d, di){
+        chart.getDatasetMeta(di).data.forEach(function(el, ei){
+          if(d.data[ei] && Math.abs(el.y - y) < h/2 + el.height/2) x = Math.max(x, el.x);
+        });
+      });
+    }
+    return {x:x, y:y};
+  };
+
+  function makeChart(id, horiz, stacked, filterKey){
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var grid = {color:'#E3E6E8'}, tick = {color:'#59636C', font:{size:12, family:'Barlow, sans-serif'}};
+    var valueAxis = {beginAtZero:true, stacked:stacked, grid:grid, ticks:Object.assign({precision:0}, tick), border:{display:false}};
+    var catAxis = {stacked:stacked, grid:{display:false}, ticks:Object.assign({autoSkip:false}, tick), border:{color:'#C8CDD2'}};   // never drop category labels
+    charts[id] = new Chart($(id), {
+      type:'bar', data:{labels:[], datasets:[]}, plugins:[totalsPlugin],
+      options:{
+        indexAxis: horiz?'y':'x', responsive:true, maintainAspectRatio:false,
+        animation: reduce ? false : {duration:300},
+        layout:{padding:{right: horiz?24:0, top: horiz?0:74}},   // vertical chart: strip above the bars reserved for the tooltip
+        scales: horiz ? {x:valueAxis, y:catAxis} : {x:catAxis, y:valueAxis},
+        plugins:{
+          legend:{display:stacked, position: horiz ? 'top' : 'bottom', align:'end', labels:{boxWidth:11, boxHeight:11, color:'#20262B', font:{size:12, family:'Barlow, sans-serif'}}},
+          tooltip:{
+            position:'barEnd', animation:{duration:0},
+            xAlign: horiz ? 'left' : 'center', yAlign: horiz ? 'center' : 'bottom',
+            caretPadding: horiz ? 34 : 22, caretSize:0, padding:8,
+            displayColors: stacked,
+            titleFont:{family:'Barlow, sans-serif', size:13}, bodyFont:{family:'Barlow, sans-serif', size:13}, footerFont:{family:'Barlow, sans-serif', size:13},
+            callbacks: stacked ? {
+              footer:function(items){ if(!horiz) return []; return 'Total: '+items.reduce(function(s,i){return s+i.parsed.x;},0); }
+            } : {
+              label:function(item){ return item.parsed.x + ' projects'; }
+            }
+          }
+        },
+        // Hover and click follow the category under the pointer (the y axis on horizontal charts)
+        interaction:{mode:'index', axis: horiz ? 'y' : 'x', intersect:false},
+        onClick:function(evt, els, chart){
+          if(!els.length) return;
+          var v = chart.data.labels[els[0].index];
+          filters[filterKey] = (filters[filterKey]===String(v)) ? '' : String(v);
+          $(selectMap[filterKey]).value = filters[filterKey];
+          render();
+        },
+        onHover:function(evt, els){ evt.native.target.style.cursor = els.length ? 'pointer' : 'default'; }
+      }
+    });
+    return charts[id];
+  }
+
+  function dim(color, label, selected){
+    return (selected && String(label)!==selected) ? color+'59' : color;   // 35% opacity when another bar is selected
+  }
+  function stackedDatasets(labels, list, key, selected, statuses){
+    return statuses.map(function(st){
+      var color = COLORS[st] || COLORS.other;
+      var counts = {};
+      list.forEach(function(r){ if(r.status===st && r[key]!=null){ counts[r[key]]=(counts[r[key]]||0)+1; } });
+      return {
+        label:st,
+        data:labels.map(function(l){ return counts[l]||0; }),
+        backgroundColor:labels.map(function(l){ return dim(color,l,selected); }),
+        borderWidth:0, barPercentage:.75, categoryPercentage:.85
+      };
+    });
+  }
+  function headroom(chart, labels, datasets, horiz){
+    var max = 0;
+    labels.forEach(function(_,i){ max=Math.max(max, datasets.reduce(function(s,d){return s+d.data[i];},0)); });
+    // Leave ~210px free to the right of the longest bar so the tooltip fits beside it without covering data
+    var factor = 1.12, a = chart.chartArea;
+    if(horiz && a && a.right - a.left > 300) factor = Math.min(1.9, Math.max(1.25, 1/(1-210/(a.right-a.left))));
+    chart.options.scales[horiz?'x':'y'].suggestedMax = Math.max(4, Math.ceil(max*factor));
+  }
+
+  /* ---------- Render ---------- */
+  function render(){
+    if(!Object.keys(charts).length){
+      makeChart('c-year', false, true,  'year');
+      makeChart('c-hood', true,  true,  'hood');
+      makeChart('c-cat',  true,  false, 'category');
+      makeChart('c-origin', true, false, 'origin');
+    }
+    var cur = apply(null), n = cur.length;
+    $('noMatch').hidden = n>0;
+
+    // KPIs
+    $('k-total').textContent = n.toLocaleString();
+    var allShown = n === rows.length;
+    $('k-total-sub').textContent = allShown ? 'Requested ' + (function(){ var y = rows.map(function(r){return r.year;}).filter(Boolean); return Math.min.apply(null,y)+' to '+Math.max.apply(null,y); })() : 'of ' + rows.length.toLocaleString() + ' in total';
+    var done = cur.filter(function(r){return r.status==='Complete';}).length;
+    var planned = cur.filter(function(r){return r.status==='Planned';}).length;
+    $('k-done').textContent = n ? Math.round(done/n*100)+'%' : '-';
+    $('k-done-sub').textContent = done.toLocaleString()+' complete, '+planned.toLocaleString()+' planned';
+    var hoodsNow = Object.keys(count(cur,'hood')).length;
+    $('k-hood').textContent = hoodsNow;
+    $('k-hood-sub').textContent = allShown ? 'across the city' : 'of ' + info.hoods + ' in total';
+    var cc = count(cur,'category'), top = null;
+    Object.keys(cc).forEach(function(k){ if(top===null || cc[k]>cc[top]) top=k; });
+    $('k-top').textContent = top || '-';
+    $('k-top').title = top || '';
+    $('k-top-sub').textContent = top ? cc[top]+' projects ('+Math.round(cc[top]/n*100)+'% of the selection)' : '';
+
+    var statuses = statusOrder(uniq('status'));
+
+    // Year (full range so gaps such as a missing year stay visible)
+    var yrs = uniq('year').map(Number), labels = [];
+    if(yrs.length){ for(var y=Math.min.apply(null,yrs); y<=Math.max.apply(null,yrs); y++) labels.push(String(y)); }
+    var c1 = charts['c-year'];
+    c1.data.labels = labels;
+    c1.data.datasets = stackedDatasets(labels, apply('year'), 'year', filters.year, statuses);
+    headroom(c1, labels, c1.data.datasets, false);
+    c1.update();
+
+    // Neighborhoods: top N, keeping any selected neighborhood visible
+    var hl = apply('hood'), hc = count(hl,'hood');
+    var hoodLabels = Object.keys(hc).sort(function(a,b){ return hc[b]-hc[a] || a.localeCompare(b); }).slice(0,TOP_N);
+    if(filters.hood && hoodLabels.indexOf(filters.hood)<0 && hc[filters.hood]){ hoodLabels[TOP_N-1] = filters.hood; }
+    var c2 = charts['c-hood'];
+    c2.data.labels = hoodLabels;
+    c2.data.datasets = stackedDatasets(hoodLabels, hl, 'hood', filters.hood, statuses);
+    headroom(c2, hoodLabels, c2.data.datasets, true);
+    c2.update();
+
+    // Project type
+    var tl = apply('category'), tc = count(tl,'category');
+    var catLabels = Object.keys(tc).sort(function(a,b){ return tc[b]-tc[a] || a.localeCompare(b); });
+    if(filters.category && catLabels.indexOf(filters.category)<0) catLabels.push(filters.category);
+    var c3 = charts['c-cat'];
+    c3.data.labels = catLabels;
+    c3.data.datasets = [{label:'Projects', data:catLabels.map(function(l){return tc[l]||0;}),
+      backgroundColor:catLabels.map(function(l){return dim(COLORS.steel,l,filters.category);}), borderWidth:0, barPercentage:.75, categoryPercentage:.85}];
+    headroom(c3, catLabels, c3.data.datasets, true);
+    c3.update();
+
+    // Origin
+    var ol = apply('origin'), oc = count(ol,'origin');
+    var oLabels = Object.keys(oc).sort(function(a,b){ return oc[b]-oc[a] || a.localeCompare(b); });
+    if(filters.origin && oLabels.indexOf(filters.origin)<0) oLabels.push(filters.origin);
+    var c4 = charts['c-origin'];
+    c4.data.labels = oLabels;
+    c4.data.datasets = [{label:'Projects', data:oLabels.map(function(l){return oc[l]||0;}),
+      backgroundColor:oLabels.map(function(l){return dim(COLORS.origin,l,filters.origin);}), borderWidth:0, barPercentage:.6, categoryPercentage:.85}];
+    headroom(c4, oLabels, c4.data.datasets, true);
+    c4.update();
+  }
+  ingest(DATA, 'the Vision Zero Projects file', REQUIRED);
+})();
+</script>
+</body>
+</html>
