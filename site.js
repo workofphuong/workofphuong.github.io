@@ -26,6 +26,29 @@
     });
   }
 
+  // ---------- handbook: page-by-page reader ----------
+  var reader = document.getElementById('reader');
+  if (reader) {
+    var track = reader.querySelector('.reader-track');
+    var cur = reader.querySelector('.cur');
+    var prev = reader.querySelector('[data-dir="-1"]');
+    var next = reader.querySelector('[data-dir="1"]');
+    var pages = track.children.length;
+    var update = function () {
+      var i = Math.round(track.scrollLeft / track.clientWidth);
+      cur.textContent = i + 1;
+      prev.disabled = i <= 0;
+      next.disabled = i >= pages - 1;
+    };
+    track.addEventListener('scroll', update, { passive: true });
+    [prev, next].forEach(function (b) {
+      b.addEventListener('click', function () {
+        track.scrollBy({ left: Number(b.dataset.dir) * track.clientWidth, behavior: 'smooth' });
+      });
+    });
+    update();
+  }
+
   // ---------- work pages: click an image to enlarge it ----------
   var imgs = document.querySelectorAll('.frame img');
   if (imgs.length && typeof HTMLDialogElement !== 'undefined') {

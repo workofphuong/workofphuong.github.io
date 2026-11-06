@@ -117,9 +117,11 @@ img { max-width: 100%; height: auto; }
 .case-meta { color: var(--soft); max-width: 640px; margin: 0; }
 .paper { background: var(--light); color: var(--ink); border-radius: 24px; padding: clamp(24px, 5vw, 56px); margin-top: 32px; }
 .paper .intro { font: 500 clamp(1.15rem, 2.4vw, 1.35rem)/1.55 var(--font-body); color: var(--burgundy); max-width: none; margin: 0; }
+.paper .intro + p { margin-top: 16px; }
 .paper h2 {
   font: 400 clamp(2rem, 5vw, 2.8rem)/1 var(--font-display); letter-spacing: .02em; text-transform: uppercase; margin: 52px 0 14px;
 }
+.paper h3 { font: 400 1.6rem/1 var(--font-display); letter-spacing: .02em; text-transform: uppercase; margin: 36px 0 12px; }
 .paper .eyebrow + h2 { margin-top: 0; }
 .eyebrow { font: 700 .7rem var(--font-body); letter-spacing: .1em; text-transform: uppercase; color: var(--burgundy); }
 .paper .eyebrow { margin: 56px 0 4px; }
@@ -133,6 +135,35 @@ img { max-width: 100%; height: auto; }
   display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 16px;
 }
 .frame > * { min-width: 0; }
+.frame.plain { background: none; border: 0; padding: 0; }
+/* photos centered, narrower than the text column */
+.frame.plain { max-width: 660px; margin-inline: auto; justify-content: center; }
+.frame.plain.solo { max-width: 400px; }
+.frame.plain.solo.wide { max-width: 560px; }
+.frame.plain.solo .zoomable, .frame.plain.solo img { width: 100%; height: auto; }
+.fig:has(.frame.plain) { margin: 44px 0 48px; }
+.fig:has(.frame.plain) figcaption { max-width: 660px; margin-inline: auto; text-align: center; }
+/* text on the left, one photo on the right (stacks on small screens) */
+.side p { text-wrap: pretty; }
+.side::after { content: ""; display: block; clear: both; }
+.side .fig:has(.frame.plain) { margin: 8px 0 20px; }
+.side .frame.plain { max-width: 100%; }
+.side .frame.plain .zoomable, .side .frame.plain img { width: 100%; height: auto; }
+@media (min-width: 760px) {
+  /* photo floats right; the text wraps beside it, then runs the full width below it */
+  .side .fig:has(.frame.plain) { float: right; width: 340px; margin: 6px 0 16px 36px; }
+}
+/* two photos side by side at the same size */
+.frame.duo { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.frame.duo .zoomable { width: 100%; aspect-ratio: 5 / 4; overflow: hidden; border-radius: 10px; }
+.frame.duo img { width: 100%; height: 100%; object-fit: cover; }
+/* photo collage: first photo tall on the left, next two stacked on the right */
+.frame.collage { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 8px; aspect-ratio: var(--ar, 1.6); }
+.frame.collage > :first-child { grid-row: 1 / 3; }
+.frame.collage.food { grid-template-columns: 1fr 1fr; max-width: 520px; }
+.frame.collage.food > :first-child { grid-row: auto; }
+.frame.collage .zoomable { width: 100%; height: 100%; overflow: hidden; border-radius: 10px; }
+.frame.collage img { width: 100%; height: 100%; object-fit: cover; }
 .frame img { display: block; border-radius: 10px; border: 1px solid var(--paper-line); background: #fff; }
 .frame.stack { flex-direction: column; align-items: stretch; }
 .frame.stack .zoomable, .frame.stack img { width: 100%; }
@@ -174,6 +205,20 @@ img { max-width: 100%; height: auto; }
   .wf1 { grid-column: 5; grid-row: 3; }
   .flow .arrow::before { content: "\2192"; }
 }
+
+/* ---------- page reader (handbook) ---------- */
+.reader { max-width: 560px; margin: 24px auto 12px; background: var(--cream); border: 1px solid var(--paper-line); border-radius: 18px; padding: 14px; }
+.reader-track { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; border-radius: 10px; }
+.reader-track::-webkit-scrollbar { display: none; }
+.reader-track img { flex: 0 0 100%; width: 100%; height: auto; scroll-snap-align: center; background: #fff; border: 1px solid var(--paper-line); border-radius: 10px; }
+.reader-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; }
+.reader-count { font: 500 .88rem var(--font-body); color: var(--paper-soft); }
+.reader-btn {
+  font: 700 .74rem var(--font-body); letter-spacing: .1em; text-transform: uppercase; color: var(--burgundy);
+  background: transparent; border: 1px solid var(--burgundy); border-radius: 99px; padding: 8px 18px; cursor: pointer;
+}
+.reader-btn:hover:not(:disabled) { background: var(--burgundy); color: var(--light); }
+.reader-btn:disabled { opacity: .35; cursor: default; }
 
 .next { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
 .next a {
